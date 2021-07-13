@@ -145,6 +145,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
 
 [[package]]
+name = "corsware"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cf279de149958038acd43c7fa6d3d24bcffe01f9808dfc6278aa7585a8e8937"
+dependencies = [
+ "hyper 0.10.16",
+ "iron",
+ "unicase 1.4.2",
+ "url 1.7.2",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -538,6 +550,7 @@ name = "ink-backend"
 version = "0.1.0"
 dependencies = [
  "bodyparser",
+ "corsware",
  "hubcaps",
  "iron",
  "lazy_static",

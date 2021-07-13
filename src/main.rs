@@ -1,7 +1,9 @@
 #![deny(rust_2018_idioms)]
 
+use corsware::{AllowedOrigins, CorsMiddleware, UniCase};
 use iron::{
     headers::ContentType,
+    method::Method::{Get, Post},
     modifiers::Header,
     prelude::*,
     status,
@@ -17,6 +19,7 @@ use std::{
 
 use crate::sandbox::Sandbox;
 
+const ONE_HOUR_IN_SECONDS: u32 = 60 * 60;
 const DEFAULT_ADDRESS: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 5000;
 
@@ -32,7 +35,19 @@ fn main() {
 
     let mut mount = Mount::new();
     mount.mount("/compile", compile);
-    let chain = Chain::new(mount);
+    let mut chain = Chain::new(mount);
+    chain.link_around(CorsMiddleware {
+        // A null origin occurs when you make a request from a
+        // page hosted on a filesystem, such as when you read the
+        // Rust book locally
+        allowed_origins: AllowedOrigins::Any { allow_null: true },
+        allowed_headers: vec![UniCase("Content-Type".to_owned())],
+        allowed_methods: vec![Get, Post],
+        exposed_headers: vec![],
+        allow_credentials: false,
+        max_age_seconds: ONE_HOUR_IN_SECONDS,
+        prefer_wildcard: true,
+    });
 
     log::info!("Starting the server on http://{}:{}", address, port);
     Iron::new(chain)

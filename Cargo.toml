@@ -6,6 +6,7 @@ edition = "2018"
 [dependencies]
 
 bodyparser = "0.8.0"
+corsware = "0.2.0"
 hubcaps = "0.6.0"
 iron = "0.6.0"
 lazy_static = "1.0.0"
