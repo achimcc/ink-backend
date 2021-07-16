@@ -147,8 +147,8 @@ impl Sandbox {
         let stdout = vec_to_str(output.stdout)?;
         let mut stderr = vec_to_str(output.stderr)?;
 
-        let mut code = match file {
-            Some(file) => read(&file)?.unwrap_or_else(String::new),
+        let code = match file {
+            Some(file) => read(&file)?,
             None => {
                 // If we didn't find the file, it's *most* likely that
                 // the user's code was invalid. Tack on our own error
@@ -161,21 +161,11 @@ impl Sandbox {
                     req.target
                 )
                 .expect("Unable to write to a string");
-                String::new()
+                None
             }
         };
 
-        if let CompileTarget::Assembly(_, demangle, process) = req.target {
-            if demangle == DemangleAssembly::Demangle {
-                code = super::asm_cleanup::demangle_asm(&code);
-            }
-
-            if process == ProcessAssembly::Filter {
-                code = super::asm_cleanup::filter_asm(&code);
-            }
-        } else if CompileTarget::Hir == req.target {
-            // TODO: Run rustfmt on the generated HIR.
-        }
+        let code = code.unwrap();
 
         Ok(CompileResponse {
             success: output.status.success(),
@@ -209,7 +199,6 @@ impl Sandbox {
         cmd.arg(&channel.container_name()).args(&execution_cmd);
 
         log::debug!("Compilation command is {:?}", cmd);
-        println!("Compilation command is {:?}", cmd);
 
         cmd
     }
@@ -264,17 +253,18 @@ fn build_execution_command() -> Vec<&'static str> {
     cmd
 }
 
-fn read(path: &Path) -> Result<Option<String>> {
+fn read(path: &Path) -> Result<Option<Vec<u8>>> {
     let f = match File::open(path) {
         Ok(f) => f,
         Err(ref e) if e.kind() == ErrorKind::NotFound => return Ok(None),
         e => e.context(UnableToReadOutput)?,
     };
     let mut f = BufReader::new(f);
-
-    let mut s = String::new();
-    f.read_to_string(&mut s).context(UnableToReadOutput)?;
-    Ok(Some(s))
+    let metadata = fs::metadata(path).expect("unable to read metadata");
+    // f.read_to_string(&mut s).context(UnableToReadOutput)?;
+    let mut buffer = vec![0; metadata.len() as usize];
+    f.read(&mut buffer).expect("buffer overflow");
+    Ok(Some(buffer))
 }
 
 #[tokio::main]
@@ -284,8 +274,6 @@ async fn run_command_with_timeout(mut command: Command) -> Result<std::process::
     let timeout = DOCKER_PROCESS_TIMEOUT_HARD;
 
     let output = command.output().await.context(UnableToStartCompiler)?;
-
-    println!("Output: {:?}", output);
 
     // Exit early, in case we don't have the container
     /*
@@ -586,7 +574,7 @@ impl BacktraceRequest for CompileRequest {
 #[derive(Debug, Clone)]
 pub struct CompileResponse {
     pub success: bool,
-    pub code: String,
+    pub code: Vec<u8>,
     pub stdout: String,
     pub stderr: String,
 }
@@ -776,6 +764,9 @@ mod test {
         }
     }
 
+}
+    /*
+
     #[test]
     fn output_llvm_ir() {
         let _singleton = one_test_at_a_time();
@@ -852,4 +843,4 @@ mod test {
         assert!(resp.code.contains(".file"));
     }
 }
-    
+*/

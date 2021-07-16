@@ -23,7 +23,6 @@ const ONE_HOUR_IN_SECONDS: u32 = 60 * 60;
 const DEFAULT_ADDRESS: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 5000;
 
-mod asm_cleanup;
 mod sandbox;
 
 fn main() {
@@ -215,7 +214,7 @@ struct CompileRequest {
 #[derive(Debug, Clone, Serialize)]
 struct CompileResponse {
     success: bool,
-    code: String,
+    code: Vec<u8>,
     stdout: String,
     stderr: String,
 }
