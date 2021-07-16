@@ -285,6 +285,7 @@ fn parse_target(s: &str) -> Result<sandbox::CompileTarget> {
         "mir" => sandbox::CompileTarget::Mir,
         "hir" => sandbox::CompileTarget::Hir,
         "wasm" => sandbox::CompileTarget::Wasm,
+        "contract" => sandbox::CompileTarget::Contract,
         value => InvalidTarget { value }.fail()?,
     })
 }
