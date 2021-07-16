@@ -1,53 +1,17 @@
 # ink! CI for Linux Distributions
 
-Docker image based on our base CI image `<base-ci:latest>`.
+This Docker image is based on: https://github.com/paritytech/scripts/blob/master/dockerfiles/ink-ci-linux/Dockerfile
 
-Used to build and test ink!.
-
-## Dependencies and Tools
-
-**Inherited from `<base-ci:latest>`**
-
-- `libssl-dev`
-- `clang-10`
-- `lld`
-- `libclang-dev`
-- `make`
-- `cmake`
-- `git`
-- `pkg-config`
-- `curl`
-- `time`
-- `rhash`
-- `ca-certificates`
-- `jq`
-
-**Rust versions:**
-
-We always use the [latest possible](https://rust-lang.github.io/rustup-components-history/) `nightly` version that supports our required `rustup` components:
-
-- `clippy`: The Rust linter.
-- `rust-src`: The Rust sources of the standard library.
-- `miri`: The Rust MIR interpreter that interprets the test suite with additional checks.
-- `rustfmt`: The Rust code formatter.
-
-**Rust tools & toolchains:**
-
-- `grcov`: Required for general Rust code coverage reports.
-- `rust-covfix`: Required to polish the coverage reports by `grcov`.
-- `cargo-contract`: Required to build ink! Wasm smart contracts.
-- `xargo`: Required so that `miri` runs properly.
-- `cargo-spellcheck`: Required for the CI to do automated spell-checking.
-- `wasm32-unknown-unknown`: The toolchain to compile Rust codebases for Wasm.
-
-[Click here](https://hub.docker.com/repository/docker/paritytech/ink-ci-linux) for the registry.
+It is modified in a way such that it provides a prebuild ink! Smart Contract in order to minimize build time for standard ink contracts without extra dependencies.
 
 ## Usage
 
-```yaml
-test-ink:
-    stage: test
-        image: paritytech/ink-ci-linux:production
-        script:
-            - cargo build ...
-```
+While being within the `Dockerfile` directory, build it with:
+
+`sudo docker build -t ink-ci-linux .`
+
+Then, to compile a ink! Smart Contract file `lib.rs`, enter:
+
+`docker run --workdir /builds/contract --volume $local_path_to_source$/lib.rs:/builds/contract/lib.rs --volume $local_path_to_result$:/builds/contract/target/ink ink-backend cargo contract build`
+
+where you should replace `$local_path_to_source$` to the path on your local machine pointing to `lib.rs` and `$local_path_to_result$` by your desired output path for the resulting `.contract`, `.wasm` and `.json` files.
