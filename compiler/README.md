@@ -12,6 +12,6 @@ While being within the `Dockerfile` directory, build it with:
 
 Then, to compile a ink! Smart Contract file `lib.rs`, enter:
 
-`docker run --workdir /builds/contract --volume $local_path_to_source$/lib.rs:/builds/contract/lib.rs --volume $local_path_to_result$:/builds/contract/target/ink ink-backend cargo contract build`
+`docker run --volume $local_path_to_source$:/builds/contract/lib.rs --volume $local_path_to_result$:/output ink-backend /bin/bash -c "cargo contract build && mv /target/ink/*.contract /output/"`
 
-where you should replace `$local_path_to_source$` to the path on your local machine pointing to `lib.rs` and `$local_path_to_result$` by your desired output path for the resulting `.contract`, `.wasm` and `.json` files.
+where you should replace `$local_path_to_source$` to the path on your local machine pointing to `lib.rs` and `$local_path_to_result$` by your desired output path for the resulting `.contract` file.
