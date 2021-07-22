@@ -116,7 +116,6 @@ impl Sandbox {
         let scratch = TempDir::new("playground").context(UnableToCreateTempDir)?;
         let input_file = scratch.path().join("input.rs");
         let output_dir = scratch.path().join("output");
-
         fs::create_dir(&output_dir).context(UnableToCreateOutputDir)?;
         fs::set_permissions(&output_dir, wide_open_permissions())
             .context(UnableToSetOutputPermissions)?;
@@ -129,11 +128,14 @@ impl Sandbox {
     }
 
     pub fn compile(&self, req: &CompileRequest) -> Result<CompileResponse> {
+        println!("received compile request!");
+
         self.write_source_code(&req.code)?;
 
         let command = self.compile_command(req.channel);
-
+        println!("starting compilation!"); 
         let output = run_command_with_timeout(command)?;
+        println!("compilation done!"); 
 
         // The compiler writes the file to a name like
         // `compilation-3b75174cac3d47fb.ll`, so we just find the
@@ -167,6 +169,8 @@ impl Sandbox {
 
         let code = code.unwrap();
 
+        println!("Compilation done!");
+
         Ok(CompileResponse {
             success: output.status.success(),
             code,
@@ -192,6 +196,7 @@ impl Sandbox {
         &self,
         channel: Channel,
     ) -> Command {
+
         let mut cmd = self.docker_command();
 
         let execution_cmd = build_execution_command();
@@ -199,6 +204,8 @@ impl Sandbox {
         cmd.arg(&channel.container_name()).args(&execution_cmd);
 
         log::debug!("Compilation command is {:?}", cmd);
+
+        println!("Compilation command is {:?}", cmd);
 
         cmd
     }
@@ -213,7 +220,7 @@ impl Sandbox {
 
         let mut mount_output_dir = self.output_dir.as_os_str().to_os_string();
         mount_output_dir.push(":");
-        mount_output_dir.push("/builds/contract/target/ink");
+        mount_output_dir.push("/output");
 
         let mut cmd = basic_secure_docker_command();
 
@@ -221,6 +228,9 @@ impl Sandbox {
             .arg(&mount_input_file)
             .arg("--volume")
             .arg(&mount_output_dir);
+      //      .arg("--volume /home/achim/release:/target/ink/release")
+      //      .arg("--volume /home/achim/wasm32-unknown-unknown:/target/ink/wasm32-unknown-unknown")
+      //      .arg("--volume /home/achim/cargo_home:/usr/local/cargo");
 
         cmd
     }
@@ -248,7 +258,7 @@ fn basic_secure_docker_command() -> Command {
 
 fn build_execution_command() -> Vec<&'static str> {
 
-    let cmd = vec!["cargo", "contract", "build"];
+    let cmd = vec!["/bin/bash", "-c", "cargo contract build && mv /target/ink/*.contract /output/"];
 
     cmd
 }
@@ -272,9 +282,9 @@ async fn run_command_with_timeout(mut command: Command) -> Result<std::process::
     use std::os::unix::process::ExitStatusExt;
 
     let timeout = DOCKER_PROCESS_TIMEOUT_HARD;
-
+    println!("now compiling!");
     let output = command.output().await.context(UnableToStartCompiler)?;
-
+    println!("output: {:?}", output);
     // Exit early, in case we don't have the container
     /*
     if !output.status.success() {

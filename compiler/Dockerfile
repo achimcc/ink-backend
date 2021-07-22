@@ -22,8 +22,7 @@ WORKDIR /builds
 
 ENV SHELL /bin/bash
 ENV DEBIAN_FRONTEND=noninteractive
-ENV CARGO_TARGET_DIR="/cargo_target"
-ENV CARGO_HOME="/cargo_home"
+ENV CARGO_TARGET_DIR="/target"
 
 # install tools and dependencies
 RUN set -eux; \
