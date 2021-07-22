@@ -1,5 +1,5 @@
 ARG VCS_REF=master
-ARG BUILD_DATE
+ARG BUILD_DATE=""
 ARG REGISTRY_PATH=docker.io/paritytech
 
 FROM ${REGISTRY_PATH}/base-ci:latest
@@ -7,26 +7,30 @@ FROM ${REGISTRY_PATH}/base-ci:latest
 # metadata
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
-	io.parity.image.title="${REGISTRY_PATH}/ink-ci-linux" \
-	io.parity.image.description="Inherits from docker.io/paritytech/base-ci. \
-rust nightly, clippy, rustfmt, miri, rust-src grcov, rust-covfix, cargo-contract, xargo, binaryen" \
+	io.parity.image.title="${REGISTRY_PATH}/contracts-ci-linux" \
+	io.parity.image.description="Inherits from base-ci-linux:latest. \
+llvm-dev, clang, zlib1g-dev, npm, yarn, wabt, binaryen. \
+rust nightly, rustfmt, clippy, rust-src, solang, canvas-node" \
 	io.parity.image.source="https://github.com/paritytech/scripts/blob/${VCS_REF}/\
-dockerfiles/ink-ci-linux/Dockerfile" \
+dockerfiles/contracts-ci-linux/Dockerfile" \
 	io.parity.image.documentation="https://github.com/paritytech/scripts/blob/${VCS_REF}/\
-dockerfiles/ink-ci-linux/README.md" \
+dockerfiles/contracts-ci-linux/README.md" \
 	io.parity.image.revision="${VCS_REF}" \
 	io.parity.image.created="${BUILD_DATE}"
 
 WORKDIR /builds
 
 ENV SHELL /bin/bash
-ENV CXX=/usr/bin/clang++-10
 ENV DEBIAN_FRONTEND=noninteractive
+ENV CARGO_TARGET_DIR="/cargo_target"
+ENV CARGO_HOME="/cargo_home"
 
-RUN	set -eux; \
-# Needed for running commands in parallel, without overlapping output.
+# install tools and dependencies
+RUN set -eux; \
 	apt-get -y update && \
-	apt-get install -y --no-install-recommends parallel && \
+	apt-get install -y --no-install-recommends \
+		zlib1g-dev npm wabt llvm-dev && \
+	npm install --ignore-scripts -g yarn && \
 # binaryen is needed by cargo-contract for optimizing Wasm files
 # we fetch the latest version number from the GitHub API and use that release
 	curl --silent https://api.github.com/repos/WebAssembly/binaryen/releases/latest | \
@@ -38,43 +42,28 @@ RUN	set -eux; \
 	chmod +x binaryen-version_*/bin/wasm-opt && \
 	mv binaryen-version_*/bin/wasm-opt /usr/local/bin/ && \
 	rm -rf binaryen-version_*/ && \
-# The supported Rust nightly version must support the following components
-# to allow for a functioning CI pipeline:
-#
-#  - cargo: General build tool.
-#  - rustfmt: Rust formatting tool.
-#  - clippy: Rust linter.
-#  - miri: Rust interpreter with additional safety checks.
-#
-# We also need to install the wasm32-unknown-unknown target to test
-# ink! smart contracts compilation for this target architecture.
-#
-# Only Rust nightly builds supporting all of the above mentioned components
-# and targets can be used for this docker image.
 # Installs the latest common nightly for the listed components,
 # adds those components, wasm target and sets the profile to minimal
 	rustup toolchain install nightly --target wasm32-unknown-unknown \
-		--profile minimal --component rustfmt clippy miri rust-src && \
+		--profile minimal --component rustfmt clippy rust-src && \
 	rustup default nightly && \
-# We require `xargo` so that `miri` runs properly
-# We require `grcov` for coverage reporting and `rust-covfix` to improve it.
-# We require `cargo-spellcheck` for automated spell-checking
-	cargo install grcov rust-covfix xargo cargo-spellcheck && \
+	cargo install pwasm-utils-cli --bin wasm-prune && \
 	cargo install cargo-contract && \
+# tried v0.1.5 and the latest master - both fail with https://github.com/hyperledger-labs/solang/issues/314
+	cargo install --git https://github.com/hyperledger-labs/solang --tag v0.1.2 && \
+# download the latest canvas-node binary
+	curl -L "https://gitlab.parity.io/parity/canvas-node/-/jobs/artifacts/master/raw/artifacts/canvas/canvas?job=build" \
+		-o /usr/local/cargo/bin/canvas && \
+	chmod +x /usr/local/cargo/bin/canvas && \
 # versions
+	yarn --version && \
 	rustup show && \
 	cargo --version && \
-	cargo-contract --version && \
-# Clean up and remove compilation artifacts that a cargo install creates (>250M).
-	rm -rf "${CARGO_HOME}/registry" "${CARGO_HOME}/git" /root/.cache/sccache && \
-# apt clean up
+	solang --version 
+RUN	rm -rf "${CARGO_HOME}/registry" "${CARGO_HOME}/git" /root/.cache/sccache && \
 	apt-get autoremove -y && \
 	apt-get clean && \
-	rm -rf /var/lib/apt/lists/*  
-
-# TODO: switch to non-root here when ink-waterfall-ci won't be the dependency of this img
-# USER nonroot:nonroot
-
-RUN cargo contract new contract 
-
-RUN cd contract && cargo contract build
+	rm -rf /var/lib/apt/lists/*
+RUN cargo contract new contract
+RUN cd contract && cargo contract build	
+WORKDIR /builds/contract
