@@ -9,13 +9,10 @@ use iron::{
     status,
 };
 use mount::Mount;
+use router::Router;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use snafu::{ResultExt, Snafu};
-use std::{
-    any::Any,
-    convert::{TryFrom, TryInto},
-    env,
-};
+use std::{any::Any, convert::{TryFrom, TryInto}, env, sync::Arc};
 
 use crate::sandbox::Sandbox;
 
@@ -24,6 +21,7 @@ const DEFAULT_ADDRESS: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 5000;
 
 mod sandbox;
+mod gist;
 
 fn main() {
     let address = env::var("PLAYGROUND_UI_ADDRESS").unwrap_or_else(|_| DEFAULT_ADDRESS.to_string());
@@ -31,10 +29,22 @@ fn main() {
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
+    // let gh_token = env::var("PLAYGROUND_GITHUB_TOKEN").expect("Must specify PLAYGROUND_GITHUB_TOKEN");
+    let gh_token= "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".to_owned();
+    let mut gist_router = Router::new();
+    gist_router.post("/", meta_gist_create, "gist_create");
+    gist_router.get("/:id", meta_gist_get, "gist_get");
 
     let mut mount = Mount::new();
     mount.mount("/compile", compile);
+    mount.mount("/meta/gist", gist_router);
+
+    let gh_token = GhToken::new(gh_token);
+
     let mut chain = Chain::new(mount);
+
+    chain.link_before(gh_token);
+    
     chain.link_around(CorsMiddleware {
         // A null origin occurs when you make a request from a
         // page hosted on a filesystem, such as when you read the
@@ -61,6 +71,28 @@ fn compile(req: &mut Request<'_, '_>) -> IronResult<Response> {
         let response = body(req);
         response.map(CompileResponse::from).context(Compilation)
     })
+}
+
+fn meta_gist_create(req: &mut Request<'_, '_>) -> IronResult<Response> {
+    let token = req.extensions.get::<GhToken>().unwrap().0.as_ref().clone();
+    serialize_to_response(deserialize_from_request(req, |r: MetaGistCreateRequest| {
+        let gist = gist::create(token, r.code);
+        Ok(MetaGistResponse::from(gist))
+    }))
+}
+
+fn meta_gist_get(req: &mut Request<'_, '_>) -> IronResult<Response> {
+    println!("getting gist, req: {:?}", req);
+    match req.extensions.get::<Router>().unwrap().find("id") {
+        Some(id) => {
+            let token = req.extensions.get::<GhToken>().unwrap().0.as_ref().clone();
+            let gist = gist::load(token, id);
+            serialize_to_response(Ok(MetaGistResponse::from(gist)))
+        }
+        None => {
+            Ok(Response::with(status::UnprocessableEntity))
+        }
+    }
 }
 
 fn with_sandbox<Req, Resp, F>(req: &mut Request<'_, '_>, f: F) -> IronResult<Response>
@@ -270,6 +302,48 @@ impl TryFrom<CompileRequest> for sandbox::CompileRequest {
             backtrace: me.backtrace,
             code: me.code,
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct GhToken(Arc<String>);
+
+impl GhToken {
+    fn new(token: String) -> Self {
+        GhToken(Arc::new(token))
+    }
+}
+
+impl iron::BeforeMiddleware for GhToken {
+    fn before(&self, req: &mut Request<'_, '_>) -> IronResult<()> {
+        req.extensions.insert::<Self>(self.clone());
+        Ok(())
+    }
+}
+
+impl iron::typemap::Key for GhToken {
+    type Value = Self;
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MetaGistCreateRequest {
+    code: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct MetaGistResponse {
+    id: String,
+    url: String,
+    code: String,
+}
+
+impl From<gist::Gist> for MetaGistResponse {
+    fn from(me: gist::Gist) -> Self {
+        MetaGistResponse {
+            id: me.id,
+            url: me.url,
+            code: me.code,
+        }
     }
 }
 
