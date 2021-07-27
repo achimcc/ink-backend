@@ -135,7 +135,7 @@ impl Sandbox {
         let command = self.compile_command(req.channel);
         println!("starting compilation!"); 
         let output = run_command_with_timeout(command)?;
-        println!("compilation done!"); 
+        println!("compilation done!, {:?}", output); 
 
         // The compiler writes the file to a name like
         // `compilation-3b75174cac3d47fb.ll`, so we just find the
@@ -167,9 +167,12 @@ impl Sandbox {
             }
         };
 
-        let code = code.unwrap();
+        let (code, stdout) = match code {
+            Some(code)=>(code, stdout),
+            None=>(Vec::new(), stderr.clone())
+        };
 
-        println!("Compilation done!");
+        println!("Compilation done!, {}", stderr);
 
         Ok(CompileResponse {
             success: output.status.success(),
@@ -284,15 +287,18 @@ async fn run_command_with_timeout(mut command: Command) -> Result<std::process::
     let timeout = DOCKER_PROCESS_TIMEOUT_HARD;
     println!("now compiling!");
     let output = command.output().await.context(UnableToStartCompiler)?;
-    println!("output: {:?}", output);
+    println!("Done! {:?}", output);
     // Exit early, in case we don't have the container
     /*
     if !output.status.success() {
         return Ok(output);
     }
     */ 
-    let output = String::from_utf8_lossy(&output.stdout);
-    let id = output.lines().next().context(MissingCompilerId)?.trim();
+    // let response = &output.stdout;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // println!("next output :{:?}", output);
+    let id = stdout.lines().next().context(MissingCompilerId)?.trim();
+    let stderr = &output.stderr;
 
     // ----------
 
@@ -308,7 +314,7 @@ async fn run_command_with_timeout(mut command: Command) -> Result<std::process::
                 .unwrap_or("")
                 .trim()
                 .parse()
-                .unwrap_or(i32::MAX);
+                .unwrap_or(i32::MAX);   
             Ok(ExitStatusExt::from_raw(code))
         }
         Ok(e) => return e.context(UnableToWaitForCompiler), // Failed to run
@@ -335,7 +341,9 @@ async fn run_command_with_timeout(mut command: Command) -> Result<std::process::
     let code = timed_out.context(CompilerExecutionTimedOut { timeout })?;
 
     output.status = code;
-
+    output.stderr = stderr.to_owned();
+   // output.stdout = response.to_owned();
+    println!("so far complete: {:?}", output);
     Ok(output)
 }
 
