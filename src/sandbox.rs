@@ -149,8 +149,8 @@ impl Sandbox {
         let stdout = vec_to_str(output.stdout)?;
         let mut stderr = vec_to_str(output.stderr)?;
 
-        let code = match file {
-            Some(file) => read(&file)?,
+        let (code, success) = match file {
+            Some(file) => (read(&file)?, true),
             None => {
                 // If we didn't find the file, it's *most* likely that
                 // the user's code was invalid. Tack on our own error
@@ -163,7 +163,7 @@ impl Sandbox {
                     req.target
                 )
                 .expect("Unable to write to a string");
-                None
+                (None, false)
             }
         };
 
@@ -175,7 +175,7 @@ impl Sandbox {
         println!("Compilation done!, {}", stderr);
 
         Ok(CompileResponse {
-            success: output.status.success(),
+            success,
             code,
             stdout,
             stderr,

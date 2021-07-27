@@ -31,7 +31,6 @@ fn main() {
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
     let gh_token = env::var("PLAYGROUND_GITHUB_TOKEN").expect("Must specify PLAYGROUND_GITHUB_TOKEN");
-    // let gh_token= "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".to_owned();
     let mut gist_router = Router::new();
     gist_router.post("/", meta_gist_create, "gist_create");
     gist_router.get("/:id", meta_gist_get, "gist_get");
