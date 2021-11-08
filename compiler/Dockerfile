@@ -76,7 +76,7 @@ RUN	set -eux; \
 # We require `grcov` for coverage reporting and `rust-covfix` to improve it.
 # We require `cargo-spellcheck` for automated spell-checking
 	cargo install grcov rust-covfix xargo && \
-	cargo install cargo-contract && \
+	cargo install --git https://github.com/paritytech/cargo-contract && \
 
 # Stuff that compiles on stable.
   cargo +stable install cargo-spellcheck && \
